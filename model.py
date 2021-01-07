@@ -24,9 +24,10 @@ class CNNLayer(tf.keras.layers.Layer):
         else:
             input2c = tf.concat([tf.math.real(input), tf.math.imag(input)], axis=-1)
         res = self.seq(input2c)
-        res = tf.complex(res[:,:,:,:,0], res[:,:,:,:,1])
-        
+        res = tf.complex(res[:, :, :, :, 0], res[:, :, :, :, 1])
+
         return res
+
 
 class CONV_OP(tf.keras.layers.Layer):
     def __init__(self, n_f=32, ifactivate=False):
@@ -41,6 +42,7 @@ class CONV_OP(tf.keras.layers.Layer):
         res = self.seq(input)
         return res
 
+
 class SLR_Net(tf.keras.Model):
     def __init__(self, mask, niter, learned_topk=False):
         super(SLR_Net, self).__init__(name='SLR_Net')
@@ -48,10 +50,9 @@ class SLR_Net(tf.keras.Model):
         self.E = Emat_xyt(mask)
         self.learned_topk = learned_topk
         self.celllist = []
-    
 
     def build(self, input_shape):
-        for i in range(self.niter-1):
+        for i in range(self.niter - 1):
             self.celllist.append(SLRCell(input_shape, self.E, learned_topk=self.learned_topk))
         self.celllist.append(SLRCell(input_shape, self.E, learned_topk=self.learned_topk, is_last=True))
 
@@ -70,14 +71,14 @@ class SLR_Net(tf.keras.Model):
         beta = tf.zeros_like(x_rec)
         x_sym = tf.zeros_like(x_rec)
         data = [x_rec, x_sym, beta, t, d, csm]
-        
+
         for i in range(self.niter):
             data = self.celllist[i](data, d.shape)
             x_sym = data[1]
             X_SYM.append(x_sym)
 
         x_rec = data[0]
-        
+
         return x_rec, X_SYM
 
 
@@ -105,15 +106,14 @@ class SLRCell(layers.Layer):
         self.conv_4 = CONV_OP(n_f=16, ifactivate=True)
         self.conv_5 = CONV_OP(n_f=16, ifactivate=True)
         self.conv_6 = CONV_OP(n_f=2, ifactivate=False)
-        #self.conv_7 = CONV_OP(n_f=16, ifactivate=True)
-        #self.conv_8 = CONV_OP(n_f=16, ifactivate=True)
-        #self.conv_9 = CONV_OP(n_f=16, ifactivate=True)
-        #self.conv_10 = CONV_OP(n_f=16, ifactivate=True)
+        # self.conv_7 = CONV_OP(n_f=16, ifactivate=True)
+        # self.conv_8 = CONV_OP(n_f=16, ifactivate=True)
+        # self.conv_9 = CONV_OP(n_f=16, ifactivate=True)
+        # self.conv_10 = CONV_OP(n_f=16, ifactivate=True)
 
         self.lambda_step = tf.Variable(tf.constant(0.1, dtype=tf.float32), trainable=True, name='lambda_1')
         self.lambda_step_2 = tf.Variable(tf.constant(0.1, dtype=tf.float32), trainable=True, name='lambda_2')
         self.soft_thr = tf.Variable(tf.constant(0.1, dtype=tf.float32), trainable=True, name='soft_thr')
-
 
     def call(self, data, input_shape):
         if len(input_shape) == 4:
@@ -122,10 +122,9 @@ class SLRCell(layers.Layer):
             self.nb, nc, self.nt, self.nx, self.ny = input_shape
         x_rec, x_sym, beta, t, d, csm = data
 
-        
         x_rec, x_sym = self.sparse(x_rec, d, t, beta, csm)
         t = self.lowrank(x_rec)
-   
+
         beta = self.beta_mid(beta, x_rec, t)
 
         data[0] = x_rec
@@ -141,7 +140,7 @@ class SLRCell(layers.Layer):
 
         ATAX_cplx = self.E.mtimes(self.E.mtimes(x_rec, inv=False, csm=csm) - d, inv=True, csm=csm)
 
-        r_n = x_rec - tf.math.scalar_mul(lambda_step, ATAX_cplx) +\
+        r_n = x_rec - tf.math.scalar_mul(lambda_step, ATAX_cplx) + \
               tf.math.scalar_mul(lambda_step_2, x_rec + beta - t)
 
         # D_T(soft(D_r_n))
@@ -163,7 +162,7 @@ class SLRCell(layers.Layer):
         x_1_sym = self.conv_4(x_3)
         x_1_sym = self.conv_5(x_1_sym)
         x_1_sym = self.conv_6(x_1_sym)
-        #x_sym_1 = self.conv_10(x_1_sym)
+        # x_sym_1 = self.conv_10(x_1_sym)
 
         x_sym = x_1_sym - r_n
         x_rec = tf.complex(x_rec[:, :, :, :, 0], x_rec[:, :, :, :, 1])
@@ -172,10 +171,10 @@ class SLRCell(layers.Layer):
 
     def lowrank(self, x_rec):
         [batch, Nt, Nx, Ny] = x_rec.get_shape()
-        M = tf.reshape(x_rec, [batch, Nt, Nx*Ny])
+        M = tf.reshape(x_rec, [batch, Nt, Nx * Ny])
         St, Ut, Vt = tf.linalg.svd(M)
         if self.learned_topk:
-            #tf.print(tf.sigmoid(self.thres_coef))
+            # tf.print(tf.sigmoid(self.thres_coef))
             thres = tf.sigmoid(self.thres_coef) * St[:, 0]
             thres = tf.expand_dims(thres, -1)
             St = tf.nn.relu(St - thres)
@@ -185,7 +184,7 @@ class SLRCell(layers.Layer):
             top1_mask = tf.constant(top1_mask)
             St = St * top1_mask
         St = tf.linalg.diag(St)
-        
+
         St = tf.dtypes.cast(St, tf.complex64)
         Vt_conj = tf.transpose(Vt, perm=[0, 2, 1])
         Vt_conj = tf.math.conj(Vt_conj)
@@ -199,6 +198,7 @@ class SLRCell(layers.Layer):
         eta = tf.cast(tf.nn.relu(self.eta), tf.complex64)
         return beta + tf.multiply(eta, x_rec - t)
 
+
 class S_Net(tf.keras.Model):
     def __init__(self, mask, niter):
         super(S_Net, self).__init__(name='S_Net')
@@ -206,24 +206,24 @@ class S_Net(tf.keras.Model):
         self.E = Emat_xyt(mask)
 
         self.celllist = []
-    
+
     def build(self, input_shape):
-        for i in range(self.niter-1):
+        for i in range(self.niter - 1):
             self.celllist.append(SCell_learned_step(input_shape, self.E, is_last=False))
         self.celllist.append(SCell_learned_step(input_shape, self.E, is_last=True))
 
     def call(self, d):
         nb, nt, nx, ny = d.shape
-        Spre = tf.reshape(self.E.mtimes(d, inv=True), [nb, nt, nx*ny])
+        Spre = tf.reshape(self.E.mtimes(d, inv=True), [nb, nt, nx * ny])
         Mpre = Spre
 
         data = [Spre, Mpre, d]
 
         for i in range(self.niter):
             data = self.celllist[i](data)
-        
+
         S, M, _ = data
-        #M = tf.reshape(M, [nb, nt, nx, ny])
+        # M = tf.reshape(M, [nb, nt, nx, ny])
         S = tf.reshape(S, [nb, nt, nx, ny])
 
         return S
@@ -234,7 +234,7 @@ class SCell_learned_step(layers.Layer):
     def __init__(self, input_shape, E, is_last):
         super(SCell_learned_step, self).__init__()
         self.nb, self.nt, self.nx, self.ny = input_shape
-        
+
         self.E = E
 
         self.sconv = CNNLayer(n_f=32)
@@ -247,14 +247,14 @@ class SCell_learned_step(layers.Layer):
         Spre, Mpre, d = data
 
         S = self.sparse(Mpre)
-        
+
         dc = self.dataconsis(S, d)
         if not self.is_last:
             gamma = tf.cast(tf.nn.relu(self.gamma), tf.complex64)
         else:
             gamma = tf.cast(1.0, tf.complex64)
         M = S - gamma * dc
-        
+
         data[0] = S
         data[1] = M
 
@@ -263,11 +263,11 @@ class SCell_learned_step(layers.Layer):
     def sparse(self, S):
         S = tf.reshape(S, [self.nb, self.nt, self.nx, self.ny])
         S = self.sconv(S)
-        S = tf.reshape(S, [self.nb, self.nt, self.nx*self.ny])
+        S = tf.reshape(S, [self.nb, self.nt, self.nx * self.ny])
 
         return S
 
     def dataconsis(self, LS, d):
         resk = self.E.mtimes(tf.reshape(LS, [self.nb, self.nt, self.nx, self.ny]), inv=False) - d
-        dc = tf.reshape(self.E.mtimes(resk, inv=True), [self.nb, self.nt, self.nx*self.ny])
+        dc = tf.reshape(self.E.mtimes(resk, inv=True), [self.nb, self.nt, self.nx * self.ny])
         return dc

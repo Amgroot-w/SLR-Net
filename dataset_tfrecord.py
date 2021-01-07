@@ -3,17 +3,18 @@ import os
 import scipy.io as scio
 import numpy as np
 
+
 # GPU setup
-#os.environ['CUDA_VISIBLE_DEVICES'] = '5'
-#GPUs = tf.config.experimental.list_physical_devices('GPU')
-#tf.config.experimental.set_memory_growth(GPUs[0], True)
+# os.environ['CUDA_VISIBLE_DEVICES'] = '5'
+# GPUs = tf.config.experimental.list_physical_devices('GPU')
+# tf.config.experimental.set_memory_growth(GPUs[0], True)
 
 
 def get_dataset(mode, dataset_name, batch_size, shuffle=False, full=True):
     if dataset_name == 'DYNAMIC_V2_MULTICOIL':
         dataset_suffix = 'cine_multicoil_'
 
-    filenames = [os.path.join('/data/20coil', dataset_suffix+mode+'.tfrecord')]
+    filenames = [os.path.join('/data/20coil', dataset_suffix + mode + '.tfrecord')]
 
     dataset = tf.data.TFRecordDataset(filenames)
     dataset = dataset.map(parse_function)
@@ -45,7 +46,7 @@ def parse_function(example_proto):
     k = tf.complex(parsed_example['k_real'], parsed_example['k_imag'])
     label = tf.complex(parsed_example['label_real'], parsed_example['label_imag'])
     csm = tf.complex(parsed_example['csm_real'], parsed_example['csm_imag'])
-    
+
     k = tf.reshape(k, parsed_example['k_shape'])
     label = tf.reshape(label, parsed_example['img_shape'])
     csm = tf.reshape(csm, parsed_example['csm_shape'])
