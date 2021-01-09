@@ -37,7 +37,7 @@ import time
 
 slc_idx = math.floor(SLC / 2);
 print(slc_idx)
-image_  slc = np.squeeze(image[:, :, :, :, :, :, slc_idx]);
+image_slc = np.squeeze(image[:, :, :, :, :, :, slc_idx]);
 for rep in range(5):  # repeate the movie for 5 times
     for frame in range(image_slc.shape[2]):
         clear_output(wait=True)
